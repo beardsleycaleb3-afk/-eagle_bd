@@ -1,0 +1,501 @@
+<div id="game-container" style="font-family: 'Courier New', Courier, monospace; background-color: #202020; color: #9bbc0f; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; margin: 0;">
+  
+  <!-- Game Screen Wrapper -->
+  <div style="position: relative; width: 320px; height: 320px; background-color: #0f380f; border: 4px solid #4d4d4d; border-radius: 8px; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
+    
+    <!-- Main Canvas -->
+    <canvas id="overworldCanvasEl" width="320" height="240" style="image-rendering: pixelated; display: block;"></canvas>
+    
+    <!-- UI Overlay for Text -->
+    <div id="textOutputEl" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; background-color: #8bac0f; color: #0f380f; padding: 8px; box-sizing: border-box; font-size: 12px; line-height: 1.2; display: none; border-top: 2px solid #0f380f;">
+      Welcome to Sovereign Realms.
+    </div>
+
+    <!-- Stats Overlay (Exploration) -->
+    <div id="playerStatsEl" style="position: absolute; top: 0; left: 0; background: rgba(15, 56, 15, 0.8); color: #9bbc0f; padding: 4px; font-size: 10px; width: 100px;">
+      HP: <span id="hpVal">20</span>/20 | LVL: <span id="lvlVal">1</span>
+    </div>
+
+    <!-- Battle Overlay -->
+    <div id="menuOverlayEl" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #0f380f; display: none; flex-direction: column;">
+      <!-- Enemy Image Area -->
+      <div style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center;">
+        <img id="enemyImgEl" style="width: 128px; height: 128px; image-rendering: pixelated; border: 2px solid #8bac0f; background: #000;">
+        <div id="enemyStatsEl" style="position: absolute; top: 10px; right: 10px; color: #9bbc0f; text-align: right; font-size: 12px;">
+          ENEMY<br>HP: ???
+        </div>
+      </div>
+      
+      <!-- Player & Menu Area -->
+      <div style="height: 120px; border-top: 2px solid #8bac0f; padding: 8px; display: flex; gap: 8px;">
+        <div style="width: 80px; border-right: 2px solid #8bac0f; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+           <img id="heroImgEl" src="" style="width: 48px; height: 48px; background: #306f98;">
+           <div style="margin-top: 4px; font-size: 10px;">Sultan Hero</div>
+        </div>
+        <div id="battleMenuEl" style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+           <!-- Menu buttons injected by JS -->
+        </div>
+        <div id="battleLogEl" style="flex: 1; font-size: 10px; display: none;"></div>
+      </div>
+    </div>
+
+    <!-- Start Overlay (Click to init Audio) -->
+    <div id="startOverlayEl" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 56, 15, 0.9); display: flex; align-items: center; justify-content: center; flex-direction: column; cursor: pointer; z-index: 100;">
+      <h2 style="color: #9bbc0f; margin-bottom: 10px;">-eagle_bd</h2>
+      <p style="color: #8bac0f;">Click to Start</p>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div style="margin-top: 20px; display: flex; gap: 40px; align-items: center;">
+    <!-- D-Pad -->
+    <div style="position: relative; width: 100px; height: 100px;">
+      <button id="btnUp" style="position: absolute; top: 0; left: 34px; width: 32px; height: 32px; background: #333; border: none; border-radius: 4px; color: #fff; font-size: 12px;">▲</button>
+      <button id="btnDown" style="position: absolute; bottom: 0; left: 34px; width: 32px; height: 32px; background: #333; border: none; border-radius: 4px; color: #fff; font-size: 12px;">▼</button>
+      <button id="btnLeft" style="position: absolute; top: 34px; left: 0; width: 32px; height: 32px; background: #333; border: none; border-radius: 4px; color: #fff; font-size: 12px;">◀</button>
+      <button id="btnRight" style="position: absolute; top: 34px; right: 0; width: 32px; height: 32px; background: #333; border: none; border-radius: 4px; color: #fff; font-size: 12px;">▶</button>
+      <div style="position: absolute; top: 34px; left: 34px; width: 32px; height: 32px; background: #222;"></div>
+    </div>
+
+    <!-- A/B Buttons -->
+    <div style="position: relative; width: 100px; height: 60px;">
+      <button id="btnAEl" style="position: absolute; bottom: 0; right: 10px; width: 40px; height: 40px; border-radius: 50%; background: #a9364a; border: none; color: #fff; font-weight: bold; box-shadow: 0 4px 0 #601824;">A</button>
+      <button id="btnBEl" style="position: absolute; bottom: 10px; left: 10px; width: 40px; height: 40px; border-radius: 50%; background: #306f98; border: none; color: #fff; font-weight: bold; box-shadow: 0 4px 0 #183b52;">B</button>
+    </div>
+  </div>
+
+  <div style="margin-top: 10px; font-size: 10px; color: #666;">Arrows/D-Pad to Move • A to Interact • B to Back</div>
+
+<script>
+// =============================================
+// Missing Variable Definitions & Data Expansion
+// =============================================
+const STATE = { EXPLORE: 0, BATTLE_MENU: 1, DIALOGUE: 2, SHOP: 3 };
+let currentState = STATE.EXPLORE;
+let playerPos = { x: 2, y: 2 };
+let dungeonPos = { x: 1, y: 1 };
+let inDungeon = false;
+let currentFloor = 1;
+let openedChests = [];
+
+const ENEMIES = [
+  { name: "Forest Rat", hp: 8, maxHp: 8, atk: 2, xp: 10, gold: 5 },
+  { name: "Wild Slime", hp: 12, maxHp: 12, atk: 3, xp: 15, gold: 8 },
+  { name: "Cave Goblin", hp: 18, maxHp: 18, atk: 4, xp: 25, gold: 12 },
+  { name: "Dark Knight", hp: 30, maxHp: 30, atk: 6, xp: 50, gold: 25 }
+];
+
+// =============================================
+// User Instruction Code (Integrated)
+// =============================================
+
+const DOM = {
+  canvas: overworldCanvasEl,
+  textOutput: document.getElementById('textOutputEl'),
+  playerStats: document.getElementById('playerStatsEl'),
+  enemyStats: document.getElementById('enemyStatsEl'),
+  menuOverlay: document.getElementById('menuOverlayEl'),
+  heroImg: document.getElementById('heroImgEl'),
+  enemyImg: document.getElementById('enemyImgEl'),
+  battleMenu: document.getElementById('battleMenuEl'),
+  battleLog: document.getElementById('battleLogEl')
+};
+
+const ctx = DOM.canvas.getContext('2d');
+const TILE_SIZE = 16;
+const MAP_W = 20;
+const MAP_H = 15;
+
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playBeep(f, d, type = 'square', vol = 0.2) {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type; o.frequency.value = f; g.gain.value = vol;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); setTimeout(() => o.stop(), d);
+}
+
+// ====================== TILE IMAGES ======================
+const TILE_IMAGES = {};
+const TILE_FILES = {
+  'o': 'o.jpg', 'c': 'c.jpg', 'l': 'l.jpg', 'r': 'r.jpg',
+  's': 's.jpg', 'f': 'f.jpg', 'i': 'i.jpg', 'x': 'x.jpg',
+  't': 't.jpg', 'b': 'b.jpg', 'd': 'd.jpg', 'm': 'm.jpg', 'h': 'h.jpg'
+};
+
+function preloadTiles() {
+  Object.keys(TILE_FILES).forEach(key => {
+    const img = new Image();
+    img.src = `assets/tiles/${TILE_FILES[key]}`;
+    TILE_IMAGES[key] = img;
+  });
+}
+
+// ====================== BACKDROPS ======================
+const BACKDROPS = {
+  battle: new Image(),
+  shop: new Image(),
+  title: new Image(),
+  dialogue: new Image(),
+  skill: new Image(),
+  equipment: new Image(),
+  save: new Image(),
+  inventory: new Image(),
+  menu: new Image()
+};
+
+Object.keys(BACKDROPS).forEach(key => {
+  BACKDROPS[key].src = `assets/sprites/backdrops/${key}.jpg`;
+});
+
+// ====================== ENEMY SPRITES ======================
+const ENEMY_SPRITES = [];
+for (let i = 1; i <= 144; i++) {
+  const img = new Image();
+  img.src = `assets/sprites/enemies/${i}.jpg`;
+  ENEMY_SPRITES.push(img);
+}
+
+// ====================== MAPS ======================
+const worldMap = [
+  ["t","t","t","t","t","t","t","t","t","t","t","t","t","t","t","t","t","t","t","t"],
+  ["l","o","o","o","f","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","c","o","o","o","f","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["l","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","o","r"],
+  ["b","b","b","b","b","b","b","b","b","b","b","b","b","b","b","b","b","b","b","b"]
+];
+
+const dungeonMap = JSON.parse(JSON.stringify(worldMap)); // Deep copy for simplicity
+
+// ====================== PLAYER & COMPANIONS ======================
+let player = {
+  name: "Sultan Hero",
+  lvl: 1,
+  xp: 0,
+  nextXp: 50,
+  hp: 20, maxHp: 20,
+  mp: 10, maxMp: 10,
+  atk: 3,
+  def: 2,
+  gold: 30,
+  status: null
+};
+
+let companions = [
+  {
+    id: 1, name: "Warrior", atk: 5, color: '#306f98', recruited: false,
+    weapon: null, armor: null, mp: 8, maxMp: 8,
+    skills: [
+      { name: "Power Strike", dmg: 9, cost: 2, effect: null },
+      { name: "Shield Bash", dmg: 5, cost: 1, effect: "stun" }
+    ]
+  },
+  {
+    id: 2, name: "Mage", atk: 4, color: '#a9364a', recruited: false,
+    weapon: null, armor: null, mp: 8, maxMp: 8,
+    skills: [
+      { name: "Firebolt", dmg: 7, cost: 2, effect: null },
+      { name: "Group Heal", dmg: -6, cost: 3, effect: null }
+    ]
+  }
+];
+
+// ====================== DRAW MAP ======================
+function drawMap() {
+  ctx.clearRect(0, 0, DOM.canvas.width, DOM.canvas.height);
+  const map = inDungeon ? dungeonMap : worldMap;
+  const pos = inDungeon ? dungeonPos : playerPos;
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const tileCode = map[y][x];
+      const img = TILE_IMAGES[tileCode];
+      const sx = x * TILE_SIZE;
+      const sy = y * TILE_SIZE;
+
+      if (img && img.complete && img.naturalWidth !== 0) {
+        ctx.drawImage(img, sx, sy, TILE_SIZE, TILE_SIZE);
+      } else {
+        let color = '#0f380f';
+        if (tileCode === 'o') color = '#9bbc0f'; // Grass
+        if (tileCode === 'f') color = '#306f98'; // Forest/Trigger
+        if (tileCode === 'd') color = '#8bac0f'; // Door/Dialogue
+        if (tileCode === 'm') color = '#0f380f'; // Mountain/Shop
+        if (tileCode === 'h') color = '#8bac0f'; // House/Home
+        if (tileCode === 'i') color = '#e0f8cf'; // Item/Chest
+        ctx.fillStyle = color;
+        ctx.fillRect(sx, sy, TILE_SIZE, TILE_SIZE);
+      }
+    }
+  }
+
+  // Companions 
+  companions.filter(c => c.recruited).forEach((c, i) => {
+    let cx = pos.x * TILE_SIZE + (i === 0 ? -10 : 10) + 3;
+    let cy = pos.y * TILE_SIZE + 2;
+    ctx.fillStyle = c.color;
+    ctx.fillRect(cx + 3, cy + 7, 9, 7);
+    ctx.fillStyle = '#0f380f';
+    ctx.fillRect(cx + 5, cy + 3, 6, 5);
+    ctx.fillStyle = '#9bbc0f';
+    ctx.fillRect(cx + 4, cy + 1, 8, 3);
+    if (c.weapon) {
+      ctx.fillStyle = '#0f380f';
+      ctx.fillRect(cx + 10, cy + 4, 2, 6);
+    }
+  });
+
+  // Player
+  let px = pos.x * TILE_SIZE + 3;
+  let py = pos.y * TILE_SIZE + 2;
+  ctx.fillStyle = '#306f98';
+  ctx.fillRect(px + 3, py + 7, 9, 7);
+  ctx.fillStyle = '#0f380f';
+  ctx.fillRect(px + 5, py + 3, 6, 5);
+  ctx.fillStyle = '#9bbc0f';
+  ctx.fillRect(px + 4, py + 1, 8, 3);
+  
+  updateStatsUI();
+}
+
+function updateStatsUI() {
+  hpVal.innerText = `${player.hp}/${player.maxHp}`;
+  lvlVal.innerText = player.lvl;
+}
+
+// ====================== MOVEMENT ======================
+function moveInExploration(dir) {
+  if (currentState !== STATE.EXPLORE) return;
+  let pos = inDungeon ? dungeonPos : playerPos;
+  let map = inDungeon ? dungeonMap : worldMap;
+  let nx = pos.x, ny = pos.y;
+  if (dir === 'UP') ny--;
+  if (dir === 'DOWN') ny++;
+  if (dir === 'LEFT') nx--;
+  if (dir === 'RIGHT') nx++;
+  if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return;
+  if (map[ny][nx] === 't' || map[ny][nx] === 'b' || map[ny][nx] === 'l' || map[ny][nx] === 'r') {
+    playBeep(100, 50, 'sawtooth', 0.1);
+    return;
+  }
+  pos.x = nx; pos.y = ny;
+  drawMap();
+  playBeep(600, 30);
+
+  const tile = map[pos.y][pos.x];
+  if (tile === 'f' && Math.random() < 0.25) {
+    DOM.textOutput.style.display = 'block';
+    DOM.textOutput.textContent = "A wild beast appears!";
+    setTimeout(startEncounter, 1000);
+  }
+  if (tile === 'd') {
+    DOM.textOutput.style.display = 'block';
+    DOM.textOutput.textContent = "You found an ancient inscription.";
+  }
+  if (tile === 'm') {
+    DOM.textOutput.style.display = 'block';
+    DOM.textOutput.textContent = "A merchant lives here.";
+  }
+  if (tile === 'h') { 
+    DOM.textOutput.style.display = 'block';
+    DOM.textOutput.textContent = "Home sweet home. HP restored.";
+    player.hp = player.maxHp;
+    player.mp = player.maxMp;
+    updateStatsUI();
+    saveGame(); 
+  }
+  if (tile === 'i') openChest(pos.x, pos.y, map);
+}
+
+// ====================== BATTLE ======================
+let enemy = null;
+
+function startEncounter() {
+  currentState = STATE.BATTLE_MENU;
+  const idx = Math.floor(Math.random() * ENEMY_SPRITES.length); // In real scenario with assets
+  enemy = JSON.parse(JSON.stringify(ENEMIES[Math.floor(Math.random() * ENEMIES.length)]));
+  enemy.hp = Math.floor(enemy.hp * (inDungeon ? 1.6 : 1));
+  
+  DOM.menuOverlay.style.display = 'flex';
+  DOM.textOutput.style.display = 'none';
+  
+  // Use placeholder if image fails (handled by onerror in user code, but good for UI)
+  DOM.enemyImg.src = ENEMY_SPRITES[idx].src; 
+  
+  DOM.enemyStats.innerHTML = `${enemy.name}<br>HP: ${enemy.hp}/${enemy.maxHp}`;
+  
+  populateBattleMenu();
+}
+
+function populateBattleMenu() {
+  DOM.battleMenu.style.display = 'grid';
+  DOM.battleLog.style.display = 'none';
+  DOM.battleMenu.innerHTML = '';
+  
+  const actions = ['Attack', 'Skill', 'Item', 'Run'];
+  actions.forEach(act => {
+    let btn = document.createElement('button');
+    btn.textContent = act;
+    btn.style.cssText = "background:#8bac0f; color:#0f380f; border:2px solid #0f380f; font-family:inherit; font-weight:bold; cursor:pointer;";
+    btn.onclick = () => handleBattleAction(act);
+    DOM.battleMenu.appendChild(btn);
+  });
+}
+
+function handleBattleAction(action) {
+  DOM.battleMenu.style.display = 'none';
+  DOM.battleLog.style.display = 'block';
+  DOM.battleLog.innerHTML = '';
+
+  const log = (msg) => { DOM.battleLog.innerHTML += `<div>${msg}</div>`; };
+
+  // Player Turn
+  if (action === 'Attack') {
+    let dmg = Math.floor(player.atk * (Math.random() * 0.4 + 0.8));
+    enemy.hp -= dmg;
+    log(`You hit for ${dmg} dmg!`);
+    playBeep(400, 100);
+  } else if (action === 'Run') {
+    if (Math.random() > 0.4) {
+      log("You escaped!");
+      setTimeout(endBattle, 1000);
+      return;
+    } else {
+      log("Failed to run!");
+    }
+  } else {
+    log("Not implemented yet.");
+  }
+
+  // Check Enemy Dead
+  if (enemy.hp <= 0) {
+    log(`${enemy.name} defeated! +${enemy.xp} XP`);
+    player.xp += enemy.xp;
+    if(player.xp >= player.nextXp) {
+      player.lvl++;
+      player.maxHp += 5;
+      player.hp = player.maxHp;
+      player.nextXp *= 1.5;
+      log(`LEVEL UP! Lvl ${player.lvl}`);
+    }
+    updateStatsUI();
+    setTimeout(endBattle, 1500);
+    return;
+  }
+
+  // Enemy Turn
+  setTimeout(() => {
+    let eDmg = Math.max(1, Math.floor(enemy.atk - (player.def * 0.5)));
+    player.hp -= eDmg;
+    log(`${enemy.name} hits for ${eDmg}!`);
+    updateStatsUI();
+    DOM.enemyStats.innerHTML = `${enemy.name}<br>HP: ${enemy.hp}/${enemy.maxHp}`;
+    
+    if (player.hp <= 0) {
+      log("You died...");
+      setTimeout(() => { location.reload(); }, 2000);
+    } else {
+      setTimeout(populateBattleMenu, 1000);
+    }
+  }, 1000);
+}
+
+function endBattle() { 
+  currentState = STATE.EXPLORE;
+  DOM.menuOverlay.style.display = 'none';
+  DOM.textOutput.style.display = 'none';
+  drawMap();
+}
+
+// ====================== INTERACTIONS ======================
+function openChest(x, y, map) {
+  const chestIdx = `${inDungeon ? 'dung' : 'world'}-${x}-${y}`;
+  if (openedChests.includes(chestIdx)) {
+    DOM.textOutput.textContent = "This chest is empty.";
+    return;
+  }
+  
+  DOM.textOutput.style.display = 'block';
+  let gold = Math.floor(Math.random() * 20) + 10;
+  player.gold += gold;
+  DOM.textOutput.textContent = `Opened chest! Found ${gold} gold.`;
+  openedChests.push(chestIdx);
+  map[y][x] = 'o'; // Remove chest
+  drawMap();
+  saveGame();
+}
+
+function saveGame() {
+  const saveData = { player, companions, inDungeon, currentFloor, playerPos, dungeonPos, openedChests };
+  localStorage['-eagle_bd_save'] = JSON.stringify(saveData);
+  console.log('Game Saved');
+}
+
+// ====================== INIT & INPUT ======================
+function init() {
+  preloadTiles();
+  
+  // Load save if exists
+  if (localStorage['-eagle_bd_save']) {
+    try {
+      const data = JSON.parse(localStorage['-eagle_bd_save']);
+      Object.assign(player, data.player);
+      companions.forEach((c, i) => { if (data.companions[i]) c.recruited = data.companions[i].recruited; });
+      inDungeon = data.inDungeon;
+      playerPos = data.playerPos;
+      dungeonPos = data.dungeonPos;
+      openedChests = data.openedChests || [];
+      DOM.textOutput.textContent = "Game loaded.";
+    } catch(e) { console.log("Save corrupted"); }
+  }
+
+  drawMap();
+
+  // Bind Controls
+  const handleBtn = (id, cmd) => {
+    document.getElementById(id).onclick = () => {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (currentState === STATE.EXPLORE) moveInExploration(cmd);
+    };
+  };
+  
+  handleBtn('btnUp', 'UP');
+  handleBtn('btnDown', 'DOWN');
+  handleBtn('btnLeft', 'LEFT');
+  handleBtn('btnRight', 'RIGHT');
+
+  // 'A' Button acts as interact/confirm
+  btnAEl.onclick = () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    playBeep(800, 50);
+    // Logic for interact can be expanded here
+  };
+
+  // 'B' Button acts as back/cancel
+  btnBEl.onclick = () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (DOM.textOutput.style.display === 'block') {
+      DOM.textOutput.style.display = 'none';
+    }
+  };
+}
+
+startOverlayEl.onclick = () => {
+  startOverlayEl.style.display = 'none';
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  init();
+};
+
+</script>
+</div>
