@@ -1,0 +1,46 @@
+/* ©eagle_bd: Sultan 47 - Mirror UI */
+
+:root {
+    --mirror-black: #050505;
+    --logic-green: #00ff41;
+    --schreibersite-gold: #ffcc00;
+}
+
+body {
+    background-color: var(--mirror-black);
+    color: var(--logic-green);
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#canvas-container {
+    background: radial-gradient(circle, #111 0%, #000 100%);
+    box-shadow: inset 0 0 50px #000;
+}
+
+#terminal {
+    background-color: rgba(10, 10, 10, 0.95);
+    border-top: 2px solid #333;
+    text-shadow: 0 0 5px var(--logic-green);
+}
+
+#glyph-input {
+    color: var(--schreibersite-gold);
+    font-weight: bold;
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    from, to { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Scrollbar for DBM Output */
+#output::-webkit-scrollbar {
+    width: 4px;
+}
+#output::-webkit-scrollbar-thumb {
+    background: #222;
+}
