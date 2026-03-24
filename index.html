@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DBM - Sultan 47 Timed Sync</title>
+    <title>DBM - Sultan 47 Fixed Sync</title>
     <style>
         body { margin: 0; background: #010801; overflow: hidden; color: #00FF41; font-family: 'Courier New', monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: none; }
         #monitor-border { border: 12px solid #222; border-radius: 20px; padding: 10px; background: #000; box-shadow: 0 0 50px rgba(0, 255, 65, 0.2); position: relative; margin-bottom: 160px; }
@@ -15,23 +15,21 @@
         .btn-outer { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #333; display: flex; justify-content: center; align-items: center; background: #151515; cursor: pointer; position: relative; }
         .btn-inner { width: 35px; height: 35px; border-radius: 50%; background: #00FF41; border: 2px solid #000; }
         .btn-label { position: absolute; bottom: -18px; font-size: 8px; color: #666; width: 60px; text-align: center; }
-        .spec-bar { position: absolute; bottom: 0; background: #00FF41; width: 4px; opacity: 0.6; pointer-events: none; }
     </style>
 </head>
 <body>
     <div id="monitor-border">
         <div id="ui">
-            <div class="stat-row"><span>LOGIC_ENGINE:</span><span>GLYPHFOLD_SYNC_V2</span></div>
-            <div class="stat-row"><span>SONG_LENGTH:</span><span id="dur-val">---</span></div>
-            <div class="stat-row"><span>SPAWN_RATE:</span><span id="rate-val">CALC...</span></div>
-            <div class="stat-row"><span>PROGRESS:</span><span id="point-idx">0 / 300</span></div>
-            <div id="audit-log">INIT: CALCULATING SYNC RATIO...</div>
+            <div class="stat-row"><span>LOGIC:</span><span>SYNC_1.39S_SEQUENCE</span></div>
+            <div class="stat-row"><span>TARGET_INTERVAL:</span><span id="rate-val">1.393s</span></div>
+            <div class="stat-row"><span>ACTIVE_POINT:</span><span id="point-idx">0 / 300</span></div>
+            <div id="audit-log">INIT: READY FOR 1.39S INTERVALS...</div>
         </div>
         <div id="viewport"></div>
     </div>
 
     <div id="deck">
-        <div class="btn-outer" onclick="initAndStartSequence()"><div class="btn-inner"></div><div class="btn-label">START_SEQ</div></div>
+        <div class="btn-outer" onclick="startSystem()"><div class="btn-inner"></div><div class="btn-label">START</div></div>
         <div class="btn-outer" onclick="toggleAudio()"><div class="btn-inner" style="background:#0088FF"></div><div class="btn-label">SYNC</div></div>
         <div class="btn-outer" onclick="downloadAudit()"><div class="btn-inner" style="background:#FFD700"></div><div class="btn-label">EXPORT</div></div>
         <div class="btn-outer" onclick="location.reload()"><div class="btn-inner" style="background:#444"></div><div class="btn-label">REBOOT</div></div>
@@ -54,10 +52,10 @@
         const audio = new Audio('3.mp3');
         let audioCtx, analyser, dataArray;
         let isRunning = false;
-        let allPointsData = []; 
-        let currentPointIndex = 0;
-        let spawnInterval = 0;
-        let lastSpawnTime = 0;
+        let allPoints = []; 
+        let spawnPtr = 0;
+        let nextSpawnTime = 0;
+        const spawnInterval = 1.393; // 418s / 300 points
         const sessionData = [];
         const log = document.getElementById('audit-log');
 
@@ -71,33 +69,27 @@
         window.addEventListener('load', () => {
             if(window.SULTAN_DATA) {
                 ['inner', 'middle', 'outer'].forEach(s => {
-                    window.SULTAN_DATA[s].slice(0, 100).forEach(p => {
-                        allPointsData.push({ ...p, type: s });
-                    });
+                    window.SULTAN_DATA[s].slice(0, 100).forEach(p => allPoints.push({ ...p, type: s }));
                 });
-                audio.onloadedmetadata = () => {
-                    const totalSec = audio.duration;
-                    spawnInterval = totalSec / 300; // THE SYNC RATIO
-                    document.getElementById('dur-val').innerText = totalSec.toFixed(1) + "s";
-                    document.getElementById('rate-val').innerText = spawnInterval.toFixed(3) + "s";
-                    writeLog("SYNC_CALC: INTERVAL SET TO " + spawnInterval.toFixed(3));
-                };
+                writeLog("DATA_LOADED: 300 POINTS READY");
             }
         });
 
-        function spawnPoint() {
-            if (currentPointIndex >= 300) return;
-            const p = allPointsData[currentPointIndex];
+        function spawnNext() {
+            if (spawnPtr >= 300) return;
+            const p = allPoints[spawnPtr];
             const colors = { inner: 0xFF00FF, middle: 0x0088FF, outer: 0x00FF41 };
-            const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 6, 6), new THREE.MeshBasicMaterial({ color: colors[p.type] }));
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(2, 6, 6), new THREE.MeshBasicMaterial({ color: colors[p.type] }));
+            
             mesh.position.set(p.x + 1000, p.y + 1000, p.z + 1000);
             mesh.userData = { target: new THREE.Vector3(p.x, p.y, p.z), spawnTime: audio.currentTime, id: p.i, type: p.type, landed: false };
+            
             pGroup.add(mesh);
-            currentPointIndex++;
-            document.getElementById('point-idx').innerText = `${currentPointIndex} / 300`;
+            spawnPtr++;
+            document.getElementById('point-idx').innerText = `${spawnPtr} / 300`;
         }
 
-        function initAndStartSequence() {
+        function startSystem() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioCtx.createAnalyser();
@@ -109,15 +101,16 @@
             }
             isRunning = true;
             audio.play();
-            writeLog("SEQUENCE_START: TIME-RATIO ENGAGED");
+            nextSpawnTime = audio.currentTime; 
+            writeLog("SEQUENCE_START: INTERVAL 1.393S");
         }
 
-        function toggleAudio() { (audio.paused) ? audio.play() : audio.pause(); }
+        function toggleAudio() { audio.paused ? audio.play() : audio.pause(); }
 
         function downloadAudit() {
             const blob = new Blob([sessionData.join('\n')], { type: 'text/plain' });
             const anchor = document.createElement('a');
-            anchor.download = `SULTAN_SYNC_AUDIT.txt`;
+            anchor.download = `DBM_1.39S_AUDIT.txt`;
             anchor.href = window.URL.createObjectURL(blob);
             anchor.click();
         }
@@ -128,12 +121,12 @@
             if (analyser && !audio.paused) {
                 analyser.getByteFrequencyData(dataArray);
                 mids = dataArray[12];
-                
-                // AUTOMATED SPAWN LOGIC: Check if it's time for the next point based on audio clock
-                if (isRunning && (audio.currentTime - lastSpawnTime >= spawnInterval)) {
-                    spawnPoint();
-                    lastSpawnTime = audio.currentTime;
-                }
+            }
+
+            // Sync: Only spawn if the audio time has hit the next 1.393s marker
+            if (isRunning && audio.currentTime >= nextSpawnTime && spawnPtr < 300) {
+                spawnNext();
+                nextSpawnTime += spawnInterval;
             }
 
             pGroup.children.forEach((m) => {
@@ -141,15 +134,12 @@
                 if (!d.landed) {
                     const dist = m.position.distanceTo(d.target);
                     if (dist > 1.0) {
-                        // CURVATURE TRAVEL
-                        const speed = 0.04 + (mids / 1500);
-                        m.position.x = THREE.MathUtils.lerp(m.position.x, d.target.x, speed * 1.2);
-                        m.position.y = THREE.MathUtils.lerp(m.position.y, d.target.y, speed * 0.8);
-                        m.position.z = THREE.MathUtils.lerp(m.position.z, d.target.z, speed * 1.1);
+                        // Movement speed purely frequency reactive
+                        const speed = 0.05 + (mids / 1500);
+                        m.position.lerp(d.target, speed);
                     } else {
                         d.landed = true;
-                        const dur = (audio.currentTime - d.spawnTime).toFixed(3);
-                        writeLog(`[${d.type.toUpperCase()}] ID:${d.id} | DUR:${dur}s | T:${audio.currentTime.toFixed(2)}`);
+                        writeLog(`[${d.type.toUpperCase()}] ID:${d.id} | DUR:${(audio.currentTime - d.spawnTime).toFixed(3)}s | T:${audio.currentTime.toFixed(2)}`);
                     }
                 }
             });
