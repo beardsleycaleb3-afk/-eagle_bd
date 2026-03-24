@@ -1,3 +1,53 @@
+
+
+/* ©eagle_bd: Sultan 47 - Production Binary Library
+ * Logic: nu-un Partner Mapping | 255-Unit Glyph Matrix
+ * Rule: n_3 (00000011) = 3_n = u_3 (11000000)
+ */
+
+const BIN_LIB = (function() {
+    const matrix = {};
+    const glyphs = {};
+
+    for (let i = 0; i <= 255; i++) {
+        const bin = i.toString(2).padStart(8, '0');
+        const rev = bin.split('').reverse().join('');
+        const mirrorIx = parseInt(rev, 2);
+        
+        // Shortened Logic: 00001111 -> oF (o + hex)
+        const prefix = (i < 128) ? "o" : "1";
+        const suffix = i.toString(16).toUpperCase();
+        const glyph = `${prefix}${suffix}`;
+
+        matrix[i] = {
+            bin: bin,
+            rev: rev,
+            mirror_index: mirrorIx,
+            glyph: glyph,
+            isBalanced: bin === rev
+        };
+        glyphs[glyph] = i; // Map glyph back to instruction
+    }
+
+    return {
+        fetch: (n) => matrix[n & 0xFF],
+        
+        // The Buddy System Handshake
+        mirrorOf: (n) => {
+            const s = matrix[n & 0xFF];
+            return { n_idx: n, u_idx: s.mirror_index, glyph: s.glyph };
+        },
+
+        // Mirror Acceptor / Symmetry Breach
+        handshake: (n) => {
+            const s = matrix[n & 0xFF];
+            return s.isBalanced ? s.glyph : "B0_RESET";
+        }
+    };
+})();
+
+console.log("SULTAN 47: 255-Unit Glyph Library Loaded.");
+
 /* ©eagle_bd: Sultan 47 - Production Binary Library
  * Logic: nu-un Physical Mirror (14:4 Parity)
  * Corrected: 0xAA is a Self-Mirror. nu-un is a Folded-Block.
