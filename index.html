@@ -3,38 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DBM - Sultan 47 Forensic Audit</title>
+    <title>DBM - Sultan 47 Full Audit</title>
     <style>
         body { margin: 0; background: #010801; overflow: hidden; color: #00FF41; font-family: 'Courier New', monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #monitor-border { border: 12px solid #222; border-radius: 20px; padding: 10px; background: #000; box-shadow: 0 0 50px rgba(0, 255, 65, 0.2); position: relative; margin-bottom: 160px; }
         #viewport { width: 320px; height: 320px; overflow: hidden; border: 1px solid #00FF41; background: #000; position: relative; }
-        
         #ui { position: absolute; top: -150px; left: 0; width: 320px; font-size: 9px; line-height: 1.2; }
         .stat-row { display: flex; justify-content: space-between; border-bottom: 1px solid #111; padding: 2px 0; }
-        #audit-log { color: #0088FF; font-size: 8px; height: 85px; overflow-y: auto; margin-top: 5px; background: rgba(0,255,65,0.05); padding: 4px; border: 1px solid #222; }
-        
+        #audit-log { color: #0088FF; font-size: 8px; height: 95px; overflow-y: auto; margin-top: 5px; background: rgba(0,255,65,0.05); padding: 4px; border: 1px solid #222; }
         #deck { width: 100%; height: 150px; background: #111; border-top: 4px solid #00FF41; position: fixed; bottom: 0; display: flex; justify-content: center; align-items: center; gap: 20px; }
         .btn-outer { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #333; display: flex; justify-content: center; align-items: center; background: #151515; cursor: pointer; position: relative; }
         .btn-inner { width: 35px; height: 35px; border-radius: 50%; background: #00FF41; border: 2px solid #000; }
         .btn-label { position: absolute; bottom: -18px; font-size: 8px; color: #666; width: 60px; text-align: center; }
-        
         .spec-bar { position: absolute; bottom: 0; background: #00FF41; width: 4px; opacity: 0.6; pointer-events: none; }
     </style>
 </head>
 <body>
     <div id="monitor-border">
         <div id="ui">
-            <div class="stat-row"><span>LOGIC_ENGINE:</span><span>GLYPHFOLD_DBM</span></div>
-            <div class="stat-row"><span>SYNC_LATENCY:</span><span id="lat-val">0.00ms</span></div>
-            <div class="stat-row"><span>BIT_COMPRESSION:</span><span>3000:1</span></div>
-            <div class="stat-row"><span>SHELL_STATUS:</span><span id="shell-status">LOCKED</span></div>
-            <div id="audit-log">INIT: STANDBY FOR COORDINATE INJECTION...</div>
+            <div class="stat-row"><span>LOGIC_ENGINE:</span><span>GLYPHFOLD_FULL_AUDIT</span></div>
+            <div class="stat-row"><span>AUDIO_TIME:</span><span id="audio-time">0.000s</span></div>
+            <div class="stat-row"><span>POINT_COUNT:</span><span id="point-idx">0 / 300</span></div>
+            <div class="stat-row"><span>STATUS:</span><span id="point-status">READY</span></div>
+            <div id="audit-log">INIT: SYSTEM STANDBY. START SEQUENCE.</div>
         </div>
         <div id="viewport"></div>
     </div>
 
     <div id="deck">
-        <div class="btn-outer" onclick="initAndDrop()"><div class="btn-inner"></div><div class="btn-label">DROP</div></div>
+        <div class="btn-outer" onclick="initAndStartSequence()"><div class="btn-inner"></div><div class="btn-label">START_SEQ</div></div>
         <div class="btn-outer" onclick="toggleAudio()"><div class="btn-inner" style="background:#0088FF"></div><div class="btn-label">SYNC</div></div>
         <div class="btn-outer" onclick="downloadAudit()"><div class="btn-inner" style="background:#FFD700"></div><div class="btn-label">EXPORT</div></div>
         <div class="btn-outer" onclick="location.reload()"><div class="btn-inner" style="background:#444"></div><div class="btn-label">REBOOT</div></div>
@@ -49,23 +46,24 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(320, 320);
         document.getElementById('viewport').appendChild(renderer.domElement);
-        camera.position.set(0, 30, 200);
+        camera.position.set(0, 30, 250);
 
         const pGroup = new THREE.Group();
         scene.add(pGroup);
 
         const audio = new Audio('3.mp3');
-        let audioCtx, analyser, dataArray, isActive = false;
+        let audioCtx, analyser, dataArray;
+        let isRunning = false;
+        let allPointsData = []; 
+        let currentPointIndex = 0;
+        const sessionData = [];
         const log = document.getElementById('audit-log');
-        const sessionData = []; // Full audit storage
-        const landingTimes = { outer: null, middle: null, inner: null };
 
         function writeLog(msg) {
-            const time = audioCtx ? audioCtx.currentTime.toFixed(3) : "0.000";
             const entry = document.createElement('div');
-            entry.innerText = `[T+${time}] ${msg}`;
+            entry.innerText = msg;
             log.prepend(entry);
-            sessionData.push(`[${time}] ${msg}`);
+            sessionData.push(msg);
         }
 
         const specBars = [];
@@ -77,31 +75,50 @@
             specBars.push(b);
         }
 
-        function makeShell(data, color, sz, type) {
-            if(!data) return new THREE.Group();
-            const g = new THREE.Group();
-            data.slice(0, 100).forEach(p => {
-                const mesh = new THREE.Mesh(
-                    new THREE.SphereGeometry(sz, 6, 6),
-                    new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 })
-                );
-                mesh.position.set(p.x + 1000, p.y + 1000, p.z + 1000);
-                mesh.userData = { target: new THREE.Vector3(p.x, p.y, p.z), type: type, id: p.i };
-                g.add(mesh);
-            });
-            return g;
-        }
-
         window.addEventListener('load', () => {
             if(window.SULTAN_DATA) {
-                pGroup.add(makeShell(window.SULTAN_DATA.outer, 0x00FF41, 1.0, 'outer'));
-                pGroup.add(makeShell(window.SULTAN_DATA.middle, 0x0088FF, 0.8, 'middle'));
-                pGroup.add(makeShell(window.SULTAN_DATA.inner, 0xFF00FF, 0.6, 'inner'));
-                writeLog("DATA_LOAD: 300 COORDINATES READY AT +1000 XYZ");
+                ['inner', 'middle', 'outer'].forEach(s => {
+                    window.SULTAN_DATA[s].slice(0, 100).forEach(p => {
+                        allPointsData.push({ ...p, type: s });
+                    });
+                });
+                writeLog("CORE_LOAD: 300 POINTS READY FOR STOPWATCH");
             }
         });
 
-        function initAndDrop() {
+        function spawnNextPoint() {
+            if (currentPointIndex >= allPointsData.length) {
+                writeLog("AUDIT_COMPLETE: ALL 300 POINTS ANALYZED");
+                isRunning = false;
+                document.getElementById('point-status').innerText = "DONE";
+                return;
+            }
+
+            const p = allPointsData[currentPointIndex];
+            const colors = { inner: 0xFF00FF, middle: 0x0088FF, outer: 0x00FF41 };
+            
+            const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(1.5, 6, 6),
+                new THREE.MeshBasicMaterial({ color: colors[p.type] })
+            );
+
+            // Start at +1000 XYZ Offset
+            mesh.position.set(p.x + 1000, p.y + 1000, p.z + 1000);
+            
+            mesh.userData = { 
+                target: new THREE.Vector3(p.x, p.y, p.z), 
+                spawnTime: audio.currentTime,
+                id: p.i,
+                type: p.type,
+                landed: false
+            };
+
+            pGroup.add(mesh);
+            document.getElementById('point-idx').innerText = `${currentPointIndex + 1} / 300`;
+            document.getElementById('point-status').innerText = "TRACKING";
+        }
+
+        function initAndStartSequence() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioCtx.createAnalyser();
@@ -111,54 +128,48 @@
                 analyser.fftSize = 64;
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
             }
-            isActive = true;
+            isRunning = true;
             audio.play();
-            writeLog("SEQUENCE_START: COLLAPSE INITIATED");
+            spawnNextPoint(); 
+            writeLog("SEQUENCE_INIT: STARTING FULL TRACK PASS");
         }
 
         function toggleAudio() { (audio.paused) ? audio.play() : audio.pause(); }
 
         function downloadAudit() {
-            const blob = new Blob([sessionData.join('\n')], { type: 'text/plain' });
+            const header = `DBM SULTAN 47 AUDIT LOG\nDATE: ${new Date().toLocaleString()}\n----------------------\n`;
+            const blob = new Blob([header + sessionData.join('\n')], { type: 'text/plain' });
             const anchor = document.createElement('a');
-            anchor.download = `DBM_AUDIT_${Date.now()}.txt`;
+            anchor.download = `SULTAN_FULL_AUDIT.txt`;
             anchor.href = window.URL.createObjectURL(blob);
             anchor.click();
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            let kick = 0, mids = 0;
+            let mids = 0;
             
             if (analyser && !audio.paused) {
                 analyser.getByteFrequencyData(dataArray);
-                kick = dataArray[2];
                 mids = dataArray[12];
                 specBars.forEach((b, i) => b.style.height = (dataArray[i] / 2) + 'px');
-                document.getElementById('lat-val').innerText = (audioCtx.currentTime * 1000).toFixed(2) + "ms";
+                document.getElementById('audio-time').innerText = audio.currentTime.toFixed(3) + "s";
             }
 
-            pGroup.children.forEach((shell) => {
-                let shellLanded = true;
-                const type = shell.children[0]?.userData.type;
-
-                shell.children.forEach((m) => {
-                    const d = m.userData;
-                    if (isActive) {
-                        const dist = m.position.distanceTo(d.target);
-                        if (dist > 0.5) {
-                            m.position.lerp(d.target, 0.01 + (mids / 4000));
-                            shellLanded = false;
-                        } else {
-                            m.scale.setScalar(1 + (kick / 255) * 0.4);
-                        }
+            pGroup.children.forEach((m) => {
+                const d = m.userData;
+                if (isRunning && !d.landed) {
+                    const dist = m.position.distanceTo(d.target);
+                    if (dist > 0.8) {
+                        // Movement speed tied to audio density
+                        m.position.lerp(d.target, 0.04 + (mids / 1500));
+                    } else {
+                        d.landed = true;
+                        const duration = (audio.currentTime - d.spawnTime).toFixed(3);
+                        writeLog(`[${d.type.toUpperCase()}] ID:${d.id} | DUR:${duration}s | T:${audio.currentTime.toFixed(2)}`);
+                        currentPointIndex++;
+                        spawnNextPoint();
                     }
-                });
-
-                if (isActive && shellLanded && !landingTimes[type]) {
-                    landingTimes[type] = audioCtx.currentTime.toFixed(3);
-                    writeLog(`PHASE_LOCK: ${type.toUpperCase()} SHELL ARRIVED`);
-                    document.getElementById('shell-status').innerText = `${type.toUpperCase()}_OK`;
                 }
             });
 
