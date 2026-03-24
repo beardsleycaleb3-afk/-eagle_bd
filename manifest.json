@@ -1,59 +1,16 @@
-"id": "-eagle_bd",
-    
+{
+  "name": "-eagle_bd",
   "short_name": "-eagle_bd",
-    
-  "description": "Proprietary 14:4 Symmetrical Mirror Engine. 3000:1 Compression Logic. Protected by H6:F7 Validation"
-    
-  "name": "-eagle_bd Sovereign Engine",
-
-  "version": "1.0.0-2026",
-    
-  "author": "Caleb Anthony Beardsley",
-    
+  "description": "-eagle_bd",
+  "start_url": ".",
+  "display": "fullscreen",
+  "background_color": "#222",
+  "theme_color": "#444",
   "icons": [
-    
     {
-      
       "src": "icon.png",
-      
       "sizes": "192x192",
-      
-      "type": "image/png",
-      
-      "purpose": "any maskable"
-      
-    },
-    
-    {
-      
-      "src": "icon.png",
-      
-      "sizes": "512x512"
-      
       "type": "image/png"
-      
     }
-
-    
-  ],
-
- {
-    
-  "start_url": "./index.html",
-    
-  "display": "standalone, fullscreen",
-    
-  "orientation": "portrait",
-    
-  "theme_color": "#010801",
-    
-  "background_color": "#010801"
-    
-    }
-
-  
-  {
-  
-  "note": "IP Claim March 2026. Kent City, MI. Registered SEC Whistleblower Asset. Mirror Parity Active."
-  
+  ]
 }
