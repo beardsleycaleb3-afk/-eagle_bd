@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"> 
+<meta name="description" content="018810 CORE — 5-Pass Audio Rectifier">
+<title>-eagle_bd</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#020617">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+    body { margin:0; padding:0; background:#000; font-family:'Courier New',monospace; color:#e2e8f0; overflow:hidden; touch-action:manipulation; height:100dvh; width:100vw; -webkit-tap-highlight-color:transparent; }
+    #appCtn { position:absolute; top:0; left:0; right:0; bottom:0; background:#020617; display:flex; flex-direction:column; width:100%; height:100%; max-width:600px; margin:0 auto; box-shadow:0 0 50px rgba(0,0,0,0.8); }
+    
+    header { padding:8px; border-bottom:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center; background:rgba(2,6,23,0.98); flex-shrink:0; min-height:40px; }
+    .core-badge { width:32px; height:32px; background:#06b6d4; color:#000; font-weight:900; font-size:12px; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 0 15px rgba(6,182,212,0.4); }
+    .header-text div:first-child { font-weight:900; font-size:12px; line-height:1.1; letter-spacing:1px; }
+    .header-text div:last-child { font-size:8px; color:#06b6d4; letter-spacing:1px; }
+    
+    .pass-selector { display:flex; gap:4px; padding:6px; background:#0a1421; justify-content:center; flex-shrink:0; overflow-x:auto; }
+    .pass-dot { width:28px; height:28px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; border:2px solid #334155; flex-shrink:0; transition:all 0.2s ease; touch-action:manipulation; }
+    .pass-dot.active { background:#06b6d4; color:#000; box-shadow:0 0 10px #06b6d4; border-color:#06b6d4; transform:scale(1.1); }
+    .pass-dot.complete { background:#1e293b; color:#64748b; border-color:#1e293b; }
+
+    .status-bar { text-align:center; padding:4px; font-size:10px; color:#94a3b8; border-bottom:1px solid #1e293b; background:#0f172a; min-height:28px; display:flex; flex-direction:column; justify-content:center; }
+    
+    .matrix-wrapper { flex:1; display:flex; align-items:center; justify-content:center; background:#000; position:relative; overflow:hidden; }
+    #mainCanvasEl { width:300px; height:320px; image-rendering:pixelated; border:2px solid #1e293b; box-shadow:0 0 25px rgba(0,255,255,0.15); background:#020617; }
+    
+    .upload-overlay { position:absolute; inset:0; background:rgba(2,6,23,0.96); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; z-index:10; backdrop-filter:blur(5px); }
+    .upload-icon { font-size:32px; margin-bottom:12px; color:#06b6d4; text-shadow:0 0 20px rgba(6,182,212,0.6); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.7; transform:scale(0.95); } }
+    
+    /* Unified Button Constraints - Max 20px high */
+    button { 
+        border:none; 
+        border-radius:4px; 
+        font-family:'Courier New',monospace; 
+        font-weight:900; 
+        font-size:10px; 
+        cursor:pointer; 
+        touch-action:manipulation; 
+        transition:all 0.1s ease-out; 
+        text-transform:uppercase; 
+        letter-spacing:0.5px; 
+        position:relative; 
+        overflow:hidden; 
+        height: 20px; /* Max height constraint enforced */
+        min-height: 20px;
+        line-height: 20px;
+        padding: 0 10px;
+        display: flex; 
+        align-items: center;
+        justify-content: center;
+    }
+    button::after { content:''; position:absolute; inset:0; background:rgba(255,255,255,0.1); transform:translateX(-100%); transition:transform 0.3s; }
+    button:active::after { transform:translateX(0); }
+    button:active { transform:scale(0.95); }
+    button:disabled { opacity:0.4; cursor:not-allowed; } 
+    
+    .controls { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:10px; background:#020617; border-top:1px solid #1e293b; flex-shrink:0; padding-bottom:max(10px, env(safe-area-inset-bottom)); }
+    
+    /* Specific Button Styles maintaining 20px height */
+    .btn-primary { background:linear-gradient(135deg, #06b6d4, #0891b2); color:#000; grid-column:span 2; box-shadow:0 2px 10px rgba(6,182,212,0.4); }
+    .btn-secondary { background:#1e293b; color:#94a3b8; border:1px solid #334155; }
+    .btn-download { background:rgba(6,182,212,0.15); color:#06b6d4; border:1px solid #06b6d4; }
+    .btn-play { background:linear-gradient(135deg, #22c55e, #16a34a); color:#000; grid-column:span 2; box-shadow:0 2px 10px rgba(34,197,94,0.4); }
+    .btn-image { background:linear-gradient(135deg, #a855f7, #9333ea); color:#fff; grid-column:span 2; box-shadow:0 2px 10px rgba(168,85,247,0.4); }
+
+    .channel-viz { display:flex; gap:4px; height:4px; width:100%; margin-top:4px; max-width:200px; margin-left:auto; margin-right:auto; }
+    .chan-bar { flex:1; background:#1e293b; border-radius:2px; transition:all 0.3s; }
+    .chan-bar.x-active { background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,0.8); }
+    .chan-bar.y-active { background:#06b6d4; box-shadow:0 0 8px rgba(6,182,212,0.8); }
+
+    .progress-bar { position:absolute; bottom:0; left:0; height:2px; background:#06b6d4; width:0%; transition:width 0.1s linear; box-shadow:0 0 5px #06b6d4; }
+
+    .playing-indicator { display:inline-block; width:6px; height:6px; background:#22c55e; border-radius:50%; margin-right:6px; animation:blink 1s infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+    /* Image preview for Pass 01 foundation */
+    .image-preview { width:100px; height:107px; border:2px solid #334155; margin-bottom:12px; display:none; object-fit:contain; }
+    .image-preview.loaded { display:block; }
+</style>
+</head>
+<body>
+
+<div id="appCtn">
+    <header>
+        <div style="display:flex;gap:10px;align-items:center;overflow:hidden;">
+            <div class="core-badge">01</div>
+            <div class="header-text">
+                <div>018810 CORE</div>
+                <div>5-PASS RECTIFIER</div>
+            </div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:9px;color:#64748b;">GRID</div>
+            <div style="font-size:11px;font-weight:bold;color:#06b6d4;">30x32</div>
+        </div>
+    </header>
+
+    <div class="pass-selector" id="passSelectorEl"></div>
+    
+    <div class="status-bar">
+        <span id="statusEl">UPLOAD AUDIO</span>
+        <div class="channel-viz">
+            <div id="vizX" class="chan-bar"></div>
+            <div id="vizY" class="chan-bar"></div>
+        </div>
+    </div>
+
+    <div class="matrix-wrapper">
+        <canvas id="mainCanvasEl" width="300" height="320"></canvas>
+        <div class="progress-bar" id="progressBarEl"></div>
+        <div id="uploadOverlayEl" class="upload-overlay">
+            <div class="upload-icon">⬆</div>
+            <div style="font-weight:900;font-size:14px;margin-bottom:8px;color:#e2e8f0;">UPLOAD AUDIO</div>
+            <div style="color:#64748b;font-size:10px;margin-bottom:20px;">MP3 • WAV • OGG • FLAC</div>
+            <button id="uploadBtn" style="background:#06b6d4;color:#000;min-width:120px;">SELECT FILE</button>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="playBtn" class="btn-play" style="display:none;">♪ PLAY</button>
+        <button id="startBtn" class="btn-primary" style="display:none;">▶ START 5-PASS</button>
+        <button id="resetBtn" class="btn-secondary">RST</button>
+        <button id="downloadBtn" class="btn-download">EXP</button>
+        <button id="imageBtn" class="btn-image" style="display:none;">🖼 LOAD PASS 01 IMG</button>
+    </div>
+</div>
+
+<input type="file" id="audioInputEl" accept="audio/*" style="display:none;">
+<input type="file" id="imageInputEl" accept="image/*" style="display:none;">
+
+<script>
+// ====================== CONFIGURATION ======================
+const MATRIX_SIZE = 960;       // Total tiles (30x32)
+const COLS = 30;               // 300px / 10px per tile
+const ROWS = 32;               // 320px / 10px per tile
+const TILE_SIZE = 10;          // 10x10 pixels per tile
+const PASS_COUNT = 5;          // 5-Pass Rectification
+const PASS_DELAY = 500;        // Delay between passes
+const AUDIO_FILE_SIZE_LIMIT = 5 * 1024 * 1024; // 5MB limit
+
+// Pass definitions with exact logic requirements for 018810 Mirror Code
+const PASS_CONFIG = [
+    { id: 1, name: "PASS 01: Visual Foundation", desc: "Image Ground + Audio", filter: 'allpass' },
+    { id: 2, name: "PASS 02: X-Channel", desc: "Bass (Low-Freq)", filter: 'lowpass', freq: 400 },
+    { id: 3, name: "PASS 03: Y-Channel", desc: "Treble (High-Freq)", filter: 'highpass', freq: 2000 },
+    { id: 4, name: "PASS 04: Negative Inversion", desc: "Negentropy Analysis", filter: 'notch', freq: 1000, q: 10 },
+    { id: 5, name: "PASS 05: Geometric Half-Blend", desc: "0oo0 Mirror Synthesis", filter: 'peaking', freq: 1000, gain: 0 }
+];
+
+// Core state management for mobile PWA environment
+let rectifierState = {
+    currentPass: 1,
+    fillProgress: 0,
+    isProcessing: false,
+    audioBuffer: null,
+    matrixData: new Uint8Array(MATRIX_SIZE),
+    passHistory: [],           // Stores data arrays for each pass
+    audioContext: null,
+    startTime: 0,              // High-res timestamp for audio start
+    isPlaying: false,          // Audio playback state
+    imageData: null            // Pass 01 visual foundation image data
+};
+
+let logEntries = [];           // Complete data log for export
+let currentAudioSource = null;
+let currentAnalyser = null;
+let animationFrameId = null;
+let isAudioPlaying = false;
+
+// ====================== DOM ELEMENTS ======================
+const canvas = document.getElementById('mainCanvasEl');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+// Hidden canvas for image processing
+const imageCanvas = document.createElement('canvas');
+imageCanvas.width = COLS;
+imageCanvas.height = ROWS;
+const imageCtx = imageCanvas.getContext('2d', { willReadFrequently: true });
+
+// ====================== INITIALIZATION ======================
+function initPassSelector() {
+    const container = document.getElementById('passSelectorEl');
+    container.innerHTML = '';
+    PASS_CONFIG.forEach((pass, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'pass-dot';
+        dot.id = `passDot${pass.id}`;
+        dot.textContent = String(pass.id).padStart(2, '0');
+        dot.title = pass.name;
+        container.appendChild(dot);
+    });
+}
+
+function updatePassUI() {
+    const pass = PASS_CONFIG[rectifierState.currentPass - 1];
+    const statusText = isAudioPlaying ? `<span class="playing-indicator"></span>` : '';
+    document.getElementById('statusEl').innerHTML = statusText + pass.name + ' — ' + pass.desc;
+    
+    // Update pass indicator dots
+    PASS_CONFIG.forEach((p, i) => {
+        const dot = document.getElementById(`passDot${p.id}`);
+        if (dot) {
+            dot.classList.toggle('active', p.id === rectifierState.currentPass);
+            dot.classList.toggle('complete', p.id < rectifierState.currentPass);
+        }
+    });
+
+    // Update channel visualization (X/Y indicators)
+    const vizX = document.getElementById('vizX');
+    const vizY = document.getElementById('vizY');
+    vizX.className = 'chan-bar';
+    vizY.className = 'chan-bar';
+
+    // Channel activation based on pass logic - strictly defined
+    switch(rectifierState.currentPass) {
+        case 1: vizX.classList.add('x-active'); vizY.classList.add('y-active'); break;  // Both channels full amplitude
+        case 2: vizX.classList.add('x-active'); break;                                   // X only (Bass isolation)
+        case 3: vizY.classList.add('y-active'); break;                                   // Y only (Treble isolation)
+        case 4: vizX.classList.add('x-active'); vizY.classList.add('y-active'); break;  // Phase-flipped negentropy
+        case 5: vizX.classList.add('x-active'); vizY.classList.add('y-active'); break;  // Final blend
+    }
+}
+
+// ====================== IMAGE PROCESSING (PASS 01) ======================
+// Load image and extract 30x32 pixel data for Pass 01 foundation
+async function loadPass01Image(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Draw image to 30x32 canvas and extract pixel data
+                imageCtx.clearRect(0, 0, COLS, ROWS);
+                imageCtx.drawImage(img, 0, 0, COLS, ROWS);
+                const imgData = imageCtx.getImageData(0, 0, COLS, ROWS);
+                const pixelData = new Uint8Array(MATRIX_SIZE);
+                
+                // Extract luminance for each pixel
+                for (let i = 0; i < MATRIX_SIZE; i++) {
+                    const idx = i * 4;
+                    const r = imgData.data[idx];
+                    const g = imgData.data[idx + 1];
+                    const b = imgData.data[idx + 2];
+                    // Standard luminance formula: 0.299*R + 0.587*G + 0.114*B
+                    pixelData[i] = Math.floor(0.299 * r + 0.587 * g + 0.114 * b);
+                }
+                
+                rectifierState.imageData = pixelData;
+                resolve(pixelData);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Get luminance from the Pass 01 visual foundation (mirrored)
+function getPixelLuminance(index) {
+    if (!rectifierState.imageData) {
+        // Fallback: if no image loaded, use mirrored data
+        const mirroredIndex = (MATRIX_SIZE - 1) - index;
+        if (mirroredIndex >= 0 && mirroredIndex < MATRIX_SIZE) {
+            return rectifierState.matrixData[mirroredIndex] || 0;
+        }
+        return 0;
+    }
+    
+    // Mirror the index: tile i maps to tile (MATRIX_SIZE - 1 - i)
+    const mirroredIndex = (MATRIX_SIZE - 1) - index;
+    if (mirroredIndex >= 0 && mirroredIndex < MATRIX_SIZE) {
+        return rectifierState.imageData[mirroredIndex];
+    }
+    return 0;
+}
+
+// ====================== AUDIO PROCESSING ======================
+// Process audio data for a specific pass with exact 5-pass logic
+function getAudioDataForPass(pass, buffer) {
+    const channelData = buffer.getChannelData(0);
+    const totalSamples = channelData.length;
+    const samplesPerTile = Math.max(1, Math.floor(totalSamples / MATRIX_SIZE));
+    
+    // First pass: compute raw audio values for all tiles
+    const rawData = new Uint8Array(MATRIX_SIZE);
+    for (let i = 0; i < MATRIX_SIZE; i++) {
+        let sum = 0;
+        let sampleCount = 0;
+        
+        // Average samples for this tile chunk
+        for (let j = 0; j < samplesPerTile; j++) {
+            const idx = (i * samplesPerTile) + j;
+            if (idx < totalSamples) {
+                sum += Math.abs(channelData[idx]);
+                sampleCount++;
+            }
+        }
+        
+        let avg = sampleCount > 0 ? sum / sampleCount : 0;
+        rawData[i] = Math.min(255, Math.floor(avg * 255));
+    }
+
+    // Second pass: apply pass-specific transformations
+    const data = new Uint8Array(MATRIX_SIZE);
+    for (let i = 0; i < MATRIX_SIZE; i++) {
+        let val = rawData[i];
+
+        // Apply 5 Pass Rectification Logic - Strict progression
+        switch(pass.id) {
+            case 1:
+                // PASS 01: Visual Foundation - Image Ground + Audio
+                // Pull luminance from the mirrored Pass 01 visual foundation
+                let imgValue = getPixelLuminance(i); 
+                // Blend audio amplitude with the image's geometric 'weight'
+                val = Math.floor((val * 0.5) + (imgValue * 0.5));
+                // This locks the audio to the visual 'Back End' coordinates
+                break;
+                
+            case 2:
+                // PASS 02: X-Channel (Bass) - Low-frequency isolation
+                // Emphasize lower amplitudes (bass-heavy representation)
+                val = Math.min(255, Math.floor(val * 1.4));
+                if (val > 170) val = Math.floor(val * 0.65 + 50);
+                break;
+                
+            case 3:
+                // PASS 03: Y-Channel (Treble) - High-frequency isolation
+                // Phase inversion for geometric coordinate mapping
+                val = 255 - val;
+                val = Math.min(255, Math.floor(val * 1.2));
+                break;
+                
+            case 4:
+                // PASS 04: Negative Inversion - Phase-flipped negentropy analysis
+                // Calculate difference from baseline (Pass 1) with phase flip
+                if (rectifierState.passHistory[0]) {
+                    const baseVal = rectifierState.passHistory[0][i];
+                    const diff = Math.abs(baseVal - val);
+                    val = Math.min(255, Math.floor(diff * 2.8)); // Amplify entropy
+                    if (val < 40) val = Math.floor(val * 0.3); // Suppress near-zero (negentropy floor)
+                }
+                break;
+                
+            case 5:
+                // PASS 05: Geometric Half-Blend - Final 0oo0 mirror synthesis
+                // Blend Pass 2 (X) and Pass 3 (Y) with Pass 4 (Negentropy)
+                if (rectifierState.passHistory[0] && rectifierState.passHistory[1] && rectifierState.passHistory[3]) {
+                    const p1 = rectifierState.passHistory[0][i]; // Pass 1 visual foundation
+                    const p2 = rectifierState.passHistory[1][i]; // X bass
+                    const p3 = rectifierState.passHistory[2][i]; // Y treble
+                    const p4 = rectifierState.passHistory[3][i]; // Negentropy
+                    
+                    // Geometric half-blend: average of X and Y, weighted by negentropy and visual foundation
+                    const xyAvg = Math.floor((p2 + p3) / 2);
+                    const entropyFactor = p4 / 255;
+                    const visualFactor = p1 / 255;
+                    val = Math.floor(p1 * 0.15 + xyAvg * 0.45 + (xyAvg * entropyFactor) * 0.25 + (p1 * visualFactor) * 0.15);
+                }
+                break;
+        }
+
+        data[i] = Math.max(0, Math.min(255, val));
+    }
+    return data;
+}
+
+// Play audio with filter configuration matching the current pass
+function playAudioPass(pass, buffer) {
+    if (!rectifierState.audioContext) {
+        rectifierState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    // Stop any existing audio
+    stopAudio();
+
+    const ctx = rectifierState.audioContext;
+    const PASS_DURATION = buffer.duration * 1000; // Duration of the audio file in ms
+
+    // Create source from buffer
+    currentAudioSource = ctx.createBufferSource();
+    currentAudioSource.buffer = buffer;
+
+    // Create filter node for pass-specific audio processing
+    const filter = ctx.createBiquadFilter();
+    filter.type = pass.filter;
+    
+    if (pass.freq !== undefined) filter.frequency.value = pass.freq;
+    if (pass.q !== undefined) filter.Q.value = pass.q;
+    if (pass.gain !== undefined) filter.gain.value = pass.gain;
+
+    // Create analyser for visualization
+    currentAnalyser = ctx.createAnalyser();
+    currentAnalyser.fftSize = 256;
+
+    // Gain node for volume control
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 0.7;
+
+    // Connect audio graph: Source -> Filter -> Analyser -> Gain -> Output
+    currentAudioSource.connect(filter);
+    filter.connect(currentAnalyser);
+    currentAnalyser.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Start playback
+    currentAudioSource.start(0);
+    rectifierState.startTime = performance.now();
+    isAudioPlaying = true;
+    rectifierState.isPlaying = true;
+    updatePassUI();
+
+    // Auto-stop after pass duration
+    setTimeout(() => {
+        if (isAudioPlaying && rectifierState.currentPass === pass.id) {
+            stopAudio();
+        }
+    }, PASS_DURATION + 100);
+
+    // Update play button text
+    if (playBtn.style.display !== 'none') {
+        playBtn.textContent = '■ STOP';
+    }
+}
+
+function stopAudio() {
+    if (currentAudioSource) {
+        try { currentAudioSource.stop(); } catch(e){}
+        currentAudioSource = null;
+    }
+    isAudioPlaying = false;
+    rectifierState.isPlaying = false;
+    updatePassUI();
+    
+    // Update play button text
+    if (playBtn.style.display !== 'none') {
+        playBtn.textContent = '♪ PLAY';
+    }
+}
+
+// Play loaded audio without running the 5-pass process
+function playLoadedAudio() {
+    if (!rectifierState.audioBuffer) return;
+    
+    if (rectifierState.audioContext.state === 'suspended') {
+        rectifierState.audioContext.resume();
+    }
+
+    if (isAudioPlaying) {
+        stopAudio();
+        return;
+    }
+
+    const ctx = rectifierState.audioContext;
+    const PASS_DURATION = rectifierState.audioBuffer.duration * 1000; // Duration of the audio file in ms
+    
+    // Stop any existing audio
+    stopAudio();
+
+    // Create source from buffer
+    currentAudioSource = ctx.createBufferSource();
+    currentAudioSource.buffer = rectifierState.audioBuffer;
+
+    // Gain node for volume control
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 0.8;
+
+    // Connect audio graph: Source -> Gain -> Output
+    currentAudioSource.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Start playback
+    currentAudioSource.start(0);
+    isAudioPlaying = true;
+    rectifierState.isPlaying = true;
+    updatePassUI();
+
+    // Auto-stop at end of audio
+    setTimeout(() => {
+        if (isAudioPlaying) {
+            stopAudio();
+        }
+    }, PASS_DURATION + 100);
+}
+
+// ====================== DRAWING & VISUALIZATION ======================
+// Convert amplitude value to RGB color for the grid
+// Spectrum: Purple/Red -> Green -> Blue -> Purple/Red cycle
+function byteToColor(byte) {
+    const v = Math.floor(byte);
+    // Map 0-255 to spectrum cycle: Purple (280) -> Red (360/0) -> Orange -> Yellow -> Green (120) -> Cyan -> Blue (240) -> Purple (280)
+    // This creates a cycle that starts at purple/red and blends through green and blue, back to red
+    let hue;
+    if (v < 85) {
+        // 0-84: Purple to Red to Orange to Yellow (280 -> 60)
+        hue = 280 + ((v / 85) * 140);
+        if (hue >= 360) hue -= 360;
+    } else if (v < 170) {
+        // 85-169: Yellow to Green to Cyan (60 -> 180)
+        hue = 60 + (((v - 85) / 85) * 120);
+    } else {
+        // 170-255: Cyan to Blue to Purple (180 -> 280)
+        hue = 180 + (((v - 170) / 85) * 100);
+    }
+    return `hsl(${hue}, 100%, 50%)`;
+}
+
+// Draw a single tile on the canvas
+function drawTile(index, value) {
+    const col = index % COLS;
+    const row = Math.floor(index / COLS);
+    const x = col * TILE_SIZE;
+    const y = row * TILE_SIZE;
+
+    // Fill tile with computed color
+    ctx.fillStyle = byteToColor(value);
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+    // Draw hex code for high-amplitude tiles (visual feedback)
+    // Lowered threshold to 80 for better visibility on mobile screens
+    if (value > 80) {
+        const hex = value.toString(16).toUpperCase().padStart(2, '0');
+        ctx.font = 'bold 6px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Ensure text visibility on rainbow background
+        // White text with black stroke for high contrast on any color
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'black';
+        ctx.strokeText(hex, x + TILE_SIZE/2, y + TILE_SIZE/2);
+        
+        ctx.fillStyle = 'white';
+        ctx.fillText(hex, x + TILE_SIZE/2, y + TILE_SIZE/2);
+    }
+}
+
+// Log complete data point for each tile
+function logTileData(pass, index, value, timestamp) {
+    const hex = value.toString(16).toUpperCase().padStart(2, '0');
+    const dec = value.toString(10).padStart(3, '0');
+    const bin = value.toString(2).padStart(8, '0');
+    
+    logEntries.push({
+        pass: pass.id,
+        passName: pass.name,
+        tileIndex: index,
+        tileCol: index % COLS,
+        tileRow: Math.floor(index / COLS),
+        timestamp: timestamp.toFixed(3), // High-resolution ms
+        timestampRelative: (timestamp - rectifierState.startTime).toFixed(3),
+        hex: hex,
+        decimal: parseInt(dec),
+        binary: bin,
+        color: byteToColor(value)
+    });
+}
+
+// Execute a single pass with visualization
+async function runPassSequence(pass) {
+    return new Promise((resolve) => {
+        // 1. Generate data for this pass
+        const passData = getAudioDataForPass(pass, rectifierState.audioBuffer);
+        rectifierState.passHistory[pass.id - 1] = passData;
+        
+        // 2. Start audio playback with pass-specific filtering
+        playAudioPass(pass, rectifierState.audioBuffer);
+        
+        // 3. Animate tile filling (typewriter effect)
+        rectifierState.fillProgress = 0;
+        const startTime = performance.now();
+        const PASS_DURATION = rectifierState.audioBuffer.duration * 1000; // Duration of the audio file in ms
+        const TILE_DELAY = PASS_DURATION / MATRIX_SIZE; // Distribute tiles across pass duration
+
+        function step() {
+            if (!rectifierState.isProcessing) {
+                stopAudio();
+                resolve();
+                return;
+            }
+
+            const now = performance.now();
+            const elapsed = now - startTime;
+            const targetIndex = Math.floor(elapsed / TILE_DELAY);
+
+            // Update progress bar
+            const progress = Math.min(100, (rectifierState.fillProgress / MATRIX_SIZE) * 100);
+            document.getElementById('progressBarEl').style.width = progress + '%';
+
+            // Draw all tiles up to current target
+            if (targetIndex > rectifierState.fillProgress) {
+                for (let i = rectifierState.fillProgress; i < targetIndex && i < MATRIX_SIZE; i++) {
+                    const val = passData[i];
+                    rectifierState.matrixData[i] = val;
+                    drawTile(i, val);
+                    logTileData(pass, i, val, now);
+                }
+                rectifierState.fillProgress = targetIndex;
+            }
+
+            // Continue until all tiles drawn or pass complete
+            if (rectifierState.fillProgress < MATRIX_SIZE && elapsed < PASS_DURATION + 1000) {
+                animationFrameId = requestAnimationFrame(step);
+            } else {
+                // Ensure all tiles are drawn
+                for (let i = rectifierState.fillProgress; i < MATRIX_SIZE; i++) {
+                    const val = passData[i];
+                    rectifierState.matrixData[i] = val;
+                    drawTile(i, val);
+                    logTileData(pass, i, val, now);
+                }
+                // Complete progress
+                document.getElementById('progressBarEl').style.width = '100%';
+                resolve();
+            }
+        }
+        
+        animationFrameId = requestAnimationFrame(step);
+    });
+}
+
+// Main process orchestration
+async function startProcess() {
+    if (!rectifierState.audioBuffer) return;
+    
+    // Initialize audio context on user gesture
+    if (rectifierState.audioContext.state === 'suspended') {
+        await rectifierState.audioContext.resume();
+    }
+
+    // Reset state
+    rectifierState.isProcessing = true;
+    rectifierState.matrixData.fill(0);
+    rectifierState.passHistory = [];
+    logEntries = [];
+    
+    // Update UI
+    startBtn.textContent = "⏳ RUNNING...";
+    startBtn.disabled = true;
+    playBtn.disabled = true;
+    imageBtn.disabled = true;
+    uploadOverlayEl.style.display = 'none';
+    
+    // Clear canvas
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Execute all 5 passes sequentially
+    for (let p = 0; p < PASS_COUNT; p++) {
+        rectifierState.currentPass = p + 1;
+        updatePassUI();
+        await runPassSequence(PASS_CONFIG[p]);
+        
+        // Brief pause between passes
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    // Completion
+    rectifierState.isProcessing = false;
+    stopAudio();
+    startBtn.textContent = "▶ DONE";
+    startBtn.disabled = false;
+    playBtn.disabled = false;
+    imageBtn.disabled = false;
+    statusEl.textContent = `COMPLETE — ${logEntries.length.toLocaleString()} LOGGED`;
+    
+    // Mark all passes as complete
+    PASS_CONFIG.forEach((p, i) => {
+        const dot = document.getElementById(`passDot${p.id}`);
+        if(dot) dot.classList.add('complete');
+    });
+    
+    // Reset progress bar
+    setTimeout(() => {
+        document.getElementById('progressBarEl').style.width = '0%';
+    }, 2000);
+}
+
+// ====================== EVENT HANDLERS ======================
+uploadBtn.onclick = () => audioInputEl.click();
+
+audioInputEl.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    statusEl.textContent = "⏳ LOADING AUDIO DATA...";
+    uploadBtn.disabled = true;
+    
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        
+        if (!rectifierState.audioContext) {
+            rectifierState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        rectifierState.audioBuffer = await rectifierState.audioContext.decodeAudioData(arrayBuffer);
+        
+        uploadOverlayEl.style.display = 'none';
+        statusEl.textContent = `READY — ${file.name.substring(0,18)} — ${MATRIX_SIZE} TILES`;
+        
+        // Show play, start, and image buttons when audio is loaded
+        playBtn.style.display = 'flex';
+        startBtn.style.display = 'flex';
+        imageBtn.style.display = 'flex';
+        
+        // Initialize canvas
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw initial grid pattern
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= COLS; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * TILE_SIZE, 0);
+            ctx.lineTo(i * TILE_SIZE, canvas.height);
+            ctx.stroke();
+        }
+        for (let i = 0; i <= ROWS; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, i * TILE_SIZE);
+            ctx.lineTo(canvas.width, i * TILE_SIZE);
+            ctx.stroke();
+        }
+        
+    } catch (err) {
+        statusEl.textContent = "❌ ERROR DECODING AUDIO";
+        console.error(err);
+        uploadBtn.disabled = false;
+    }
+};
+
+// Image upload for Pass 01 visual foundation
+imageBtn.onclick = () => imageInputEl.click();
+
+imageInputEl.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    statusEl.textContent = "⏳ LOADING PASS 01 IMG...";
+    imageBtn.disabled = true;
+    
+    try {
+        await loadPass01Image(file);
+        statusEl.textContent = `PASS 01 IMG LOADED — ${file.name.substring(0,15)}`;
+        imageBtn.textContent = "✓ PASS 01 READY";
+    } catch (err) {
+        statusEl.textContent = "❌ ERROR LOADING IMG";
+        console.error(err);
+    }
+    
+    imageBtn.disabled = false;
+};
+
+startBtn.onclick = startProcess;
+
+playBtn.onclick = playLoadedAudio;
+
+resetBtn.onclick = () => {
+    rectifierState.isProcessing = false;
+    stopAudio();
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    
+    rectifierState.matrixData.fill(0);
+    rectifierState.passHistory = [];
+    rectifierState.currentPass = 1;
+    rectifierState.imageData = null;
+    logEntries = [];
+    
+    // Reset UI
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    uploadOverlayEl.style.display = 'flex';
+    statusEl.textContent = 'UPLOAD AUDIO';
+    startBtn.textContent = "▶ START 5-PASS";
+    startBtn.disabled = false;
+    startBtn.style.display = 'none'; // Hide start button until loaded
+    playBtn.style.display = 'none'; // Hide play button until loaded
+    playBtn.disabled = false;
+    imageBtn.style.display = 'none'; // Hide image button until loaded
+    imageBtn.textContent = "🖼 LOAD PASS 01 IMG";
+    document.getElementById('progressBarEl').style.width = '0%';
+    
+    // Reset indicators
+    PASS_CONFIG.forEach((p, i) => {
+        const dot = document.getElementById(`passDot${p.id}`);
+        if (dot) dot.classList.remove('active', 'complete');
+    });
+    vizX.className = 'chan-bar';
+    vizY.className = 'chan-bar';
+    uploadBtn.disabled = false;
+    
+    // Clear input values to allow re-uploading same files
+    audioInputEl.value = '';
+    imageInputEl.value = '';
+};
+
+downloadBtn.onclick = () => {
+    if (logEntries.length === 0) {
+        alert("No data to export. Run the rectification process first.");
+        return;
+    }
+    
+    const payload = {
+        metadata: {
+            timestamp: new Date().toISOString(),
+            totalEntries: logEntries.length,
+            totalTiles: MATRIX_SIZE,
+            gridDimensions: { rows: ROWS, cols: COLS },
+            passCount: PASS_COUNT,
+            passConfig: PASS_CONFIG,
+            compressionRatio: "3000:1",
+            hasPass01Image: rectifierState.imageData !== null
+        },
+        data: logEntries
+    };
+    
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `018810_rectifier_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+// ====================== INITIALIZATION ======================
+window.onload = () => {
+    initPassSelector(); 
+    updatePassUI();
+    
+    // Draw initial blank state
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Handle viewport changes for mobile
+    window.addEventListener('resize', () => {
+        // Canvas size is fixed at 300x320, but container may adjust
+    });
+    
+    // Prevent default touch behaviors for better mobile experience
+    document.body.addEventListener('touchmove', (e) => {
+        if (e.target.closest('#passSelectorEl')) return;
+        e.preventDefault();
+    }, { passive: false });
+    
+    // Handle audio context state changes
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && rectifierState.audioContext) {
+            if (rectifierState.audioContext.state === 'suspended') {
+                rectifierState.audioContext.resume();
+            }
+        }
+    });
+};
+</script>
+</body>
+</html>
